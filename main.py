@@ -171,18 +171,21 @@ async def play_next(message):
     global queue
     if (len(queue) > 0):
         queue.pop(0)
-        await play_song(message)
+        if(len(queue) > 0):
+            await play_song(message)
     else:
         await message.channel.send('> Queue finalizada')
 
 
 async def play_song(message):
     global queue
+    if(len(queue) == 0):
+        return
     await message.reply(f'> Reproduciendo: `{queue[0].title}`')
     filename = await YTDLSource.from_url(queue[0].id, loop=client.loop, stream=True)
     voice_connection.play(filename, after=lambda e: print('Player error: %s' % e) if e else None)
     global timer
-    timer = Timer(queue[0].rawDuration, play_next(message))
+    timer = Timer(queue[0].rawDuration, await play_next(message))
 
 
 async def skip_song(message):
