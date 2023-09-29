@@ -4,6 +4,7 @@ import yt_dlp as youtube_dl
 import time
 import datetime
 import asyncio
+import threading
 from googleapiclient.discovery import build
 from dotenv import load_dotenv
 
@@ -93,6 +94,8 @@ def search_yt(query):
         prettyDuration += duration[0] + ':'
         rawDuration += int(duration[0]) * 60
         duration.pop(0)
+    else:
+        prettyDuration += '00:'
 
     duration = duration[0].split('S')
     if (len(duration) > 1):
@@ -124,7 +127,7 @@ global queue
 queue = []
 global voice_connection
 voice_connection = None
-global timer
+global task
 
 
 def view_queue(message):
@@ -161,42 +164,41 @@ async def add_song(message, args):
 
         songData = search_yt(args);
         queue.append(songData)
-        if (len(queue) == 1):
+        if (len(queue) == 1 and voice_connection.is_playing() == False):
             await play_song(message)
         else:
             await message.channel.send(f'> Agregando: `{songData.title}` a la queue')
 
 
-async def play_next(message):
+def play_next(message):
     global queue
     if (len(queue) > 0):
-        queue.pop(0)
-        if(len(queue) > 0):
-            await play_song(message)
-    else:
-        await message.channel.send('> Queue finalizada')
+        del queue[0]
+        if (len(queue) > 0):
+            global voice_connection
+            file = asyncio.run_coroutine_threadsafe(YTDLSource.from_url(queue[0].id, loop=client.loop, stream=True),
+                                                    loop=client.loop).result()
+            voice_connection.play(file, after=lambda e: play_next(message))
 
 
 async def play_song(message):
     global queue
-    if(len(queue) == 0):
+    if (len(queue) == 0):
         return
-    await message.reply(f'> Reproduciendo: `{queue[0].title}`')
-    filename = await YTDLSource.from_url(queue[0].id, loop=client.loop, stream=True)
-    voice_connection.play(filename, after=lambda e: print('Player error: %s' % e) if e else None)
-    global timer
-    timer = Timer(queue[0].rawDuration, await play_next(message))
+    asyncio.run_coroutine_threadsafe(message.reply(f'> Reproduciendo: `{queue[0].title}`'), loop=client.loop)
+    file = await YTDLSource.from_url(queue[0].id, loop=client.loop, stream=True)
+    voice_connection.play(file, after=lambda e: play_next(message))
 
 
 async def skip_song(message):
     if (message.author.voice.channel == None):
         return await message.reply('> Tenes que estar en un voice chat')
     if (len(queue) > 0):
-        global timer
+        global task
         global voice_connection
         await message.reply(f'> Saltando la canción: `{queue[0].title}`')
         queue.pop(0)
-        timer.cancel()
+        task.cancel()
         voice_connection.stop()
         if (len(queue) > 0):
             await play_song(message)
@@ -312,20 +314,6 @@ class Song:
         self.title = title
         self.duration = duration
         self.rawDuration = rawDuration
-
-
-class Timer:
-    def __init__(self, timeout, callback):
-        self._timeout = timeout
-        self._callback = callback
-        self._task = asyncio.ensure_future(self._job())
-
-    async def _job(self):
-        await asyncio.sleep(self._timeout)
-        await self._callback()
-
-    def cancel(self):
-        self._task.cancel()
 
 
 client.run(TOKEN)
