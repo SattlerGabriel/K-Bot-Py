@@ -194,11 +194,9 @@ async def skip_song(message):
     if (message.author.voice.channel == None):
         return await message.reply('> Tenes que estar en un voice chat')
     if (len(queue) > 0):
-        global task
         global voice_connection
         await message.reply(f'> Saltando la canción: `{queue[0].title}`')
-        queue.pop(0)
-        task.cancel()
+        del queue[0]
         voice_connection.stop()
         if (len(queue) > 0):
             await play_song(message)
