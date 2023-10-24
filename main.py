@@ -56,7 +56,6 @@ def get_service():
 
 
 def search_yt(query):
-    query = query.replace(' ', '%20')
     service = get_service()
     video_id = ''
 
