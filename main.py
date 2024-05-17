@@ -5,6 +5,7 @@ import time
 import datetime
 import asyncio
 import threading
+import random
 from googleapiclient.discovery import build
 from dotenv import load_dotenv
 
@@ -85,7 +86,7 @@ canciones_fifa = [
 ]
 
 async def fifa(message):
-    canciones_fifa.shuffle()
+    random.shuffle(canciones_fifa)
     for cancion in canciones_fifa:
         await add_song(message, cancion)
 
