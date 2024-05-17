@@ -13,42 +13,81 @@ TOKEN = os.getenv('BOT_TOKEN')
 PREFIX = os.getenv('PREFIX')
 KEY = os.getenv('GOOGLE_KEY')
 FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
+VERSION = os.getenv('VERSION')
 
 intents = discord.Intents.all()
 
 client = discord.Client(intents=intents)
 
-
 @client.event
 async def on_ready():
-    print(f'{client.user} has connected to Discord!')
-
+    print('____|  _)                       |               |   \n' + '  |       |   |   |   __ `__ \\    __ \\     _ \\    __| \n' + '  __|     |   |   |   |   |   |   |   |   (   |   |   \n' + ' _|      _|  \\__,_|  _|  _|  _|  _.__/   \\___/   \\__| \n')
+    print(f'v{VERSION} vivita y coleando!')
+    print(f'Prefix: {PREFIX}')
+    await client.change_presence(activity=discord.Game(name=f'-> {PREFIX}?'))
 
 @client.event
 async def on_message(message):
-    args = message.content[3:]
-    if (message.author.id != client.application_id):
-        cmd = message.content[:2]
-        if (cmd == PREFIX + '?'):  # Help
+    if(message.content[:1] != os.getenv('PREFIX') or message.author.id == client.application_id):
+        return
+    
+    message_content = message.content.split(' ')
+    command = ''
+    args = ''
+    if (len(message_content[0]) > 1):
+        command = message_content[0][1:]
+        args = message.content[len(command) + 2:] if len(message_content) > 1 else ''
+    else:
+        command = message_content[1]
+        args = message_content[len(command) + 2:] if len(message_content) > 2 else ''
+
+    print('Command: '+ command)
+    print('Arguments: ' + args)
+        
+    match(command):
+        case '?' | 'help':
             return await show_help(message)
-        if (cmd == PREFIX + 'p'):  # Play
+        case 'p' | 'play':
             return await add_song(message, args)
-        if (cmd == PREFIX + 'q'):  # Queue
+        case 'q' | 'queue':
             return await view_queue(message)
-        if (cmd == PREFIX + 's'):  # Skip
+        case 's' | 'skip':
             return await skip_song(message)
-        if (cmd == PREFIX + 'r'):  # Remove
+        case 'r' | 'remove':
             return await remove_song(message, args[0])
-        if (cmd == PREFIX + 'm'):  # Move
+        case 'm' | 'move':
             args = args.split(' ')
             if (args[0] == ''):
                 return await message.channel.send('> Me tenes que decir que canción mover, imbécil')
             if (len(args) >= 2):
+                print(args[0], args[1])
                 return await move_song(message, args[0], args[1])
             elif (len(args) == 1):
                 return await move_song(message, args[0])
-        if (cmd == PREFIX + 'h'):  # Pause/Resume
+        case 'h' | 'hold':
             return await play_pause(message)
+        case '⚽' | 'fifa':
+            return await fifa(message)
+
+
+canciones_fifa = [
+    'Automotivo Bibi Fogosa',
+    'Don Omar - Virtual Diva',
+    'El Retutu - Hoy Volvi a Verte',
+    'DJ Peligro - Candy Perreo',
+    'Yerba Brava - La Cumbia de los Trapos',
+    'Los Wachiturros - Shampein Shower',
+    'Los Nota Lokos - Sexy Soltera',
+    'Wisin & Raquel - Rakata',
+    'El Descanso Cumbiero - Gorda Trola',
+    'WANDA NARA - O Bicho Vai Pegar 🇧🇷  (Video Oficial)',
+    'Tiagz - Tacata (Lyrics) i dont speak portuguese i can speak ingles'
+]
+
+async def fifa(message):
+    canciones_fifa.shuffle()
+    for cancion in canciones_fifa:
+        await add_song(message, cancion)
 
 
 def get_service():
@@ -104,21 +143,21 @@ def search_yt(query):
         rawDuration += int(duration[0])
         duration.pop(0)
 
-    return Song('https://www.youtube.com/watch?v=' + video_id, video["items"][0]["snippet"]["title"], prettyDuration,
+    return Song(video_id, video["items"][0]["snippet"]["title"], prettyDuration,
                 rawDuration)
 
 
 async def show_help(message):
-    embed = discord.Embed(color=discord.Colour.yellow())
+    embed = discord.Embed(color=discord.Colour.green())
     embed.title = 'Lista de comandos'
     embed.description = '<a> = Parametro obligatorio\n{a} = Parametro opcional'
-    embed.add_field(name='k?', value='Muestra esta lista de comandos', inline=False)
-    embed.add_field(name='kp <Link de youtube, o busqueda>', value='Reproduce un video de youtube', inline=False)
-    embed.add_field(name='kq', value='Muestra la cola de audios que se van a reproducir', inline=False)
-    embed.add_field(name='ks', value='Salta el audio que se este reproduciendo', inline=False)
-    embed.add_field(name='kr <Indice>', value='Elimina un audio de la cola', inline=False)
-    embed.add_field(name='km <Indice> {Objetivo}', value='Mueve un audio a la posición 1 o el objetivo', inline=False)
-    embed.add_field(name='kh', value='Pausa o resume la reproducción de audio', inline=False)
+    embed.add_field(name='k? / help', value='Muestra esta lista de comandos', inline=False)
+    embed.add_field(name='kp <Link de youtube, o busqueda> / play', value='Reproduce un video de youtube', inline=False)
+    embed.add_field(name='kq / queue', value='Muestra la cola de audios que se van a reproducir', inline=False)
+    embed.add_field(name='ks / skip', value='Salta el audio que se este reproduciendo', inline=False)
+    embed.add_field(name='kr <Indice> / remove', value='Elimina un audio de la cola', inline=False)
+    embed.add_field(name='km <Indice> {Objetivo} / move', value='Mueve un audio a la posición 1 o el objetivo', inline=False)
+    embed.add_field(name='kh / hold', value='Pausa o resume la reproducción de audio', inline=False)
     await message.channel.send(embed=embed)
 
 
@@ -161,7 +200,7 @@ async def add_song(message, args):
             vc = message.author.voice.channel
             voice_connection = await vc.connect()
 
-        songData = search_yt(args);
+        songData = search_yt(args)
         queue.append(songData)
         if (len(queue) == 1 and voice_connection.is_playing() == False):
             await play_song(message)
@@ -175,7 +214,7 @@ def play_next(message):
         del queue[0]
         if (len(queue) > 0):
             global voice_connection
-            file = asyncio.run_coroutine_threadsafe(YTDLSource.from_url(queue[0].id, loop=client.loop, stream=True),
+            file = asyncio.run_coroutine_threadsafe(YTDLSource.from_url('https://www.youtube.com/watch?v=' + queue[0].id, loop=client.loop, stream=True),
                                                     loop=client.loop).result()
             voice_connection.play(file, after=lambda e: play_next(message))
 
@@ -193,9 +232,9 @@ async def skip_song(message):
     if (message.author.voice.channel == None):
         return await message.reply('> Tenes que estar en un voice chat')
     if (len(queue) > 0):
+        del queue[0]
         global voice_connection
         await message.reply(f'> Saltando la canción: `{queue[0].title}`')
-        del queue[0]
         voice_connection.stop()
         if (len(queue) > 0):
             await play_song(message)
