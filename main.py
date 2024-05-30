@@ -1,3 +1,4 @@
+#MARK:Initialization
 import os
 import discord
 import yt_dlp as youtube_dl
@@ -15,11 +16,13 @@ PREFIX = os.getenv('PREFIX')
 KEY = os.getenv('GOOGLE_KEY')
 FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
 VERSION = os.getenv('VERSION')
+FIUMBO = os.getenv('FIUMBO')
 
 intents = discord.Intents.all()
 
 client = discord.Client(intents=intents)
 
+#MARK: On Client Events
 @client.event
 async def on_ready():
     print('____|  _)                       |               |   \n' + '  |       |   |   |   __ `__ \\    __ \\     _ \\    __| \n' + '  __|     |   |   |   |   |   |   |   |   (   |   |   \n' + ' _|      _|  \\__,_|  _|  _|  _|  _.__/   \\___/   \\__| \n')
@@ -31,6 +34,8 @@ async def on_ready():
 async def on_message(message):
     if(message.content[:1] != os.getenv('PREFIX') or message.author.id == client.application_id):
         return
+    
+    isAdmin = message.author.id == FIUMBO
     
     message_content = message.content.split(' ')
     command = ''
@@ -61,7 +66,6 @@ async def on_message(message):
             if (args[0] == ''):
                 return await message.channel.send('> Me tenes que decir que canción mover, imbécil')
             if (len(args) >= 2):
-                print(args[0], args[1])
                 return await move_song(message, args[0], args[1])
             elif (len(args) == 1):
                 return await move_song(message, args[0])
@@ -70,7 +74,7 @@ async def on_message(message):
         case '⚽' | 'fifa':
             return await fifa(message)
 
-
+#MARK: Fifa
 canciones_fifa = [
     'Automotivo Bibi Fogosa',
     'Don Omar - Virtual Diva',
@@ -94,7 +98,7 @@ async def fifa(message):
 def get_service():
     return build("youtube", "v3", developerKey=KEY)
 
-
+#MARK: Youtube Search
 def search_yt(query):
     service = get_service()
     video_id = ''
@@ -147,7 +151,7 @@ def search_yt(query):
     return Song(video_id, video["items"][0]["snippet"]["title"], prettyDuration,
                 rawDuration)
 
-
+#MARK: Help
 async def show_help(message):
     embed = discord.Embed(color=discord.Colour.green())
     embed.title = 'Lista de comandos'
@@ -161,13 +165,12 @@ async def show_help(message):
     embed.add_field(name='kh / hold', value='Pausa o resume la reproducción de audio', inline=False)
     await message.channel.send(embed=embed)
 
-
+#MARK: Queue
 global queue
 queue = []
 global voice_connection
 voice_connection = None
 global task
-
 
 def view_queue(message):
     global queue
@@ -184,7 +187,7 @@ def view_queue(message):
             i += 1
     return message.channel.send(embed=embed)
 
-
+#MARK: Add song to queue
 async def add_song(message, args):
     if (message.author.voice.channel == None):
         return await message.reply('> Tenes que estar en un voice chat')
@@ -202,13 +205,15 @@ async def add_song(message, args):
             voice_connection = await vc.connect()
 
         songData = search_yt(args)
+        print(f'Adding {songData.title} to queue')
         queue.append(songData)
+        print(queue)
         if (len(queue) == 1 and voice_connection.is_playing() == False):
             await play_song(message)
         else:
             await message.channel.send(f'> Agregando: `{songData.title}` a la queue')
 
-
+#MARK: Play next song in queue
 def play_next(message):
     global queue
     if (len(queue) > 0):
@@ -219,7 +224,7 @@ def play_next(message):
                                                     loop=client.loop).result()
             voice_connection.play(file, after=lambda e: play_next(message))
 
-
+#MARK: Play song if queue is empty
 async def play_song(message):
     global queue
     if (len(queue) == 0):
@@ -228,21 +233,21 @@ async def play_song(message):
     file = await YTDLSource.from_url(queue[0].id, loop=client.loop, stream=True)
     voice_connection.play(file, after=lambda e: play_next(message))
 
-
+#MARK: Skip song
 async def skip_song(message):
     if (message.author.voice.channel == None):
         return await message.reply('> Tenes que estar en un voice chat')
     if (len(queue) > 0):
-        del queue[0]
         global voice_connection
         await message.reply(f'> Saltando la canción: `{queue[0].title}`')
+        del queue[0]
         voice_connection.stop()
         if (len(queue) > 0):
             await play_song(message)
     else:
         await message.reply('> La queue esta vacia')
 
-
+#MARK: Remove song from queue
 async def remove_song(message, index):
     if (message.author.voice.channel == None):
         return await message.reply('> Tenes que estar en un voice chat')
@@ -261,7 +266,7 @@ async def remove_song(message, index):
     await message.reply(f'> Eliminando el audio {queue[index].title} de la queue')
     queue.pop(index)
 
-
+#MARK: Move songs in queue
 async def move_song(message, start, target=None):
     if (message.author.voice.channel == None):
         return await message.reply('> Tenes que estar en un voice chat')
@@ -294,7 +299,7 @@ async def move_song(message, start, target=None):
         queue.insert(1, song)
         return await message.reply(f'> Moviendo la canción {song.title} al primer lugar')
 
-
+#MARK: Play/Pause
 async def play_pause(message):
     if (message.author.voice.channel == None):
         return await message.reply('> Tenes que estar en un voice chat')
@@ -324,9 +329,8 @@ ytdl_format_options = {
     'source_address': '0.0.0.0'  # bind to ipv4 since ipv6 addresses cause issues sometimes
 }
 
+#MARK: YTDL Initialization
 ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
-
-
 class YTDLSource(discord.PCMVolumeTransformer):
     def __init__(self, source, *, data, volume=0.5):
         super().__init__(source, volume)
@@ -344,7 +348,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
         filename = data['url'] if stream else ytdl.prepare_filename(data)
         return cls(discord.FFmpegPCMAudio(filename, **FFMPEG_OPTIONS), data=data)
 
-
+#MARK: Song class
 class Song:
     def __init__(self, id, title, duration, rawDuration):
         self.id = id
